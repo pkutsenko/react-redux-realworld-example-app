@@ -1,19 +1,25 @@
 name: Build and Deploy
 
 on:
-  push:
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: node:14.17.0
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - name: Cache dependencies
+        uses: actions/cache@v2
         with:
-          node-version: '14'
-      - run: npm install
+          path: ~/.npm
+          key: npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: npm-
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
       - name: Build
         run: npm run build
         env:
@@ -23,27 +29,3 @@ jobs:
         with:
           name: build
           path: build
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      # загружаем ранее сохраненные артефакты
-      - name: Download a single artifact
-        uses: actions/download-artifact@v2
-        with:
-          name: build
-          path: build
-      - name: Copy build to the server
-        uses: appleboy/scp-action@v0.1.1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          rm: true
-          source: build/*
-          target: "~/realworld/public"
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
