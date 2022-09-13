@@ -1,9 +1,12 @@
-name: Build and Deploy
+---
+name: Publish Preview
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      refName:
+        description: "Where to deploy"
+        required: true
 
 jobs:
   build:
@@ -12,6 +15,8 @@ jobs:
       image: node:14.17.0
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.inputs.refName }}
       - name: Cache dependencies
         uses: actions/cache@v2
         with:
@@ -23,13 +28,14 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          REACT_APP_BACKEND_URL: http://app.44-203-177-85.nip.io
+          REACT_APP_BACKEND_URL: http://${{ github.event.inputs.refName }}.44-203-177-85.nip.io/api
       - name: Archive build
         uses: actions/upload-artifact@v2
         with:
           name: build
           path: build
   deploy:
+    if: "!contains(github.event.pull_request.title, 'SKIP REVIEW')"
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -50,4 +56,5 @@ jobs:
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
       - name: Copy files to the server
         run: |
-          scp -r build/* deploy@ec2-44-203-177-85.compute-1.amazonaws.com:~/realworld/public
+          ssh deploy@ec2-44-203-177-85.compute-1.amazonaws.com "mkdir -p ~/app/${{ github.event.inputs.refName }}/public"
+          scp -r build/* deploy@ec2-44-203-177-85.compute-1.amazonaws.com:~/app/${{ github.event.inputs.refName }}/public
